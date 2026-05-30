@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>P2P Hockey</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --red: #f04040;
+            --blue: #3b82f6;
+            --ice: #dbeafe;
+            --dark: #0d1117;
+            --panel: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --muted: #7d8590;
+            --accent: #58a6ff;
+            --green: #3fb950;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--dark);
+            color: var(--text);
+            font-family: 'Noto Sans', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        /* Фоновая текстура арены */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 40% at 50% 110%, rgba(59,130,246,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 30% at 20% -10%, rgba(240,64,64,0.07) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ===== ЭКРАН ПОДКЛЮЧЕНИЯ ===== */
+        #setupMenu {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 520px;
+            padding: 24px 16px 32px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .arena-logo {
+            font-family: 'Black Han Sans', sans-serif;
+            font-size: 52px;
+            letter-spacing: 2px;
+            line-height: 1;
+            margin-bottom: 4px;
+            background: linear-gradient(135deg, #f04040 0%, #ff7070 40%, #3b82f6 70%, #60a5fa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 20px rgba(240,64,64,0.3));
+        }
+
+        .arena-sub {
+            color: var(--muted);
+            font-size: 11px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: 40px;
+        }
+
+        /* Карточка */
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px 28px;
+            width: 100%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+
+        .card-title {
+            font-size: 11px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-title::before, .card-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* Кнопки */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            font-family: 'Noto Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .btn:active { transform: scale(0.97); }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #0d1117;
+            border-color: var(--accent);
+            width: 100%;
+            font-size: 15px;
+            padding: 14px;
+        }
+        .btn-primary:hover { background: #79c0ff; border-color: #79c0ff; }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--muted);
+            border-color: var(--border);
+            width: 100%;
+            font-size: 15px;
+            padding: 14px;
+        }
+        .btn-ghost:hover { color: var(--text); border-color: #555; background: rgba(255,255,255,0.04); }
+
+        .btn-red {
+            background: rgba(240,64,64,0.15);
+            color: #ff8080;
+            border-color: rgba(240,64,64,0.4);
+            flex: 1;
+        }
+        .btn-red:hover { background: rgba(240,64,64,0.25); }
+        .btn-red.active { background: #f04040; color: white; border-color: #f04040; }
+
+        .btn-blue-team {
+            background: rgba(59,130,246,0.15);
+            color: #93c5fd;
+            border-color: rgba(59,130,246,0.4);
+            flex: 1;
+        }
+        .btn-blue-team:hover { background: rgba(59,130,246,0.25); }
+        .btn-blue-team.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+
+        .btn-start {
+            background: linear-gradient(135deg, #3fb950, #2ea043);
+            color: white;
+            border-color: #3fb950;
+            width: 100%;
+            font-size: 16px;
+            padding: 15px;
+            letter-spacing: 1px;
+            display: none;
+        }
+        .btn-start:hover { background: linear-gradient(135deg, #56d364, #3fb950); }
+
+        /* Инпут */
+        .input-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            color: var(--text);
+            font-family: 'Noto Sans', sans-serif;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        input[type="text"]:focus { border-color: var(--accent); }
+        input[type="text"]::placeholder { color: var(--muted); }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--muted);
+            font-size: 12px;
+            margin: 16px 0;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* ===== ЛОББИ ===== */
+        #lobbyView { display: none; width: 100%; }
+
+        .room-id-badge {
+            background: rgba(88,166,255,0.1);
+            border: 1px solid rgba(88,166,255,0.3);
+            border-radius: 10px;
+            padding: 10px 16px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .room-id-label { font-size: 11px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+        .room-id-value { font-family: monospace; font-size: 13px; color: var(--accent); word-break: break-all; }
+        .copy-btn {
+            background: rgba(88,166,255,0.15);
+            border: 1px solid rgba(88,166,255,0.3);
+            border-radius: 6px;
+            color: var(--accent);
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.15s;
+        }
+        .copy-btn:hover { background: rgba(88,166,255,0.25); }
+        .copy-btn:active { transform: scale(0.95); }
+
+        .teams-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .team-col {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 14px;
+            border: 1px solid var(--border);
+        }
+        .team-col-red { border-top: 3px solid var(--red); }
+        .team-col-blue { border-top: 3px solid var(--blue); }
+
+        .team-col-header {
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .dot-red { background: var(--red); }
+        .dot-blue { background: var(--blue); }
+
+        .player-list { min-height: 60px; margin-bottom: 10px; }
+        .player-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 0;
+            font-size: 13px;
+            color: var(--text);
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .player-item:last-child { border-bottom: none; }
+        .player-you { font-weight: 600; }
+        .player-crown { font-size: 11px; }
+
+        .status-bar {
+            text-align: center;
+            color: var(--muted);
+            font-size: 13px;
+            margin-top: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .pulse-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--green);
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.8); }
+        }
+
+        /* ===== ИГРОВОЙ UI ===== */
+        #gameUI { display: none; flex-direction: column; align-items: center; padding: 16px; z-index: 10; position: relative; width: 100%; }
+
+        .hud {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 1008px;
+            padding: 10px 4px;
+            margin-bottom: 8px;
+        }
+
+        .score-team {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .score-team-name {
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        .score-num {
+            font-family: 'Black Han Sans', sans-serif;
+            font-size: 42px;
+            line-height: 1;
+        }
+        .score-num-red { color: var(--red); text-shadow: 0 0 20px rgba(240,64,64,0.5); }
+        .score-num-blue { color: var(--blue); text-shadow: 0 0 20px rgba(59,130,246,0.5); }
+
+        .score-sep {
+            font-family: 'Black Han Sans', sans-serif;
+            font-size: 28px;
+            color: var(--muted);
+        }
+
+        canvas {
+            background: #dbeafe;
+            border-radius: 12px;
+            border: 3px solid #1e3a5f;
+            display: none;
+            max-width: 100%;
+            box-shadow: 0 0 60px rgba(59,130,246,0.15), 0 0 0 1px rgba(255,255,255,0.05);
+        }
+
+        /* ===== ПАНЕЛЬ УПРАВЛЕНИЯ ===== */
+        #controlsPanel {
+            display: none;
+            width: 100%;
+            max-width: 1008px;
+            margin-top: 14px;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .control-group {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px 16px;
+        }
+
+        .control-group-title {
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: var(--text);
+        }
+        .control-row:last-child { margin-bottom: 0; }
+
+        .key {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+            border-radius: 5px;
+            padding: 2px 7px;
+            min-width: 26px;
+            height: 24px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent);
+            font-family: monospace;
+            white-space: nowrap;
+        }
+
+        .key-icon { font-size: 14px; }
+
+        .control-desc { color: #a0aec0; font-size: 12px; }
+
+        .wasd-layout {
+            display: grid;
+            grid-template-columns: repeat(3, 28px);
+            grid-template-rows: repeat(2, 28px);
+            gap: 3px;
+            margin-bottom: 6px;
+        }
+        .wasd-key {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent);
+            font-family: monospace;
+        }
+        .wasd-empty { visibility: hidden; }
+        .wasd-desc { font-size: 12px; color: var(--muted); }
+
+        /* Состояния загрузки */
+        .connecting-state {
+            text-align: center;
+            padding: 20px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 20px; height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin-bottom: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="setupMenu">
+    <div class="arena-logo">🏒 PUCK</div>
+    <div class="arena-sub">Онлайн Хоккей</div>
+
+    <div class="card" style="width:100%">
+        <div id="preConnect">
+            <div class="card-title">Новая игра</div>
+            <button id="btnCreate" class="btn btn-primary">⚡ Создать комнату</button>
+            <div class="divider">или войти по ID</div>
+            <div class="input-row">
+                <input type="text" id="joinIdInput" placeholder="Вставьте ID комнаты...">
+                <button id="btnJoin" class="btn btn-ghost" style="width:auto; padding:12px 18px;">Войти</button>
+            </div>
+        </div>
+
+        <div id="connectingState" class="connecting-state" style="display:none">
+            <div class="spinner"></div><br>
+            Подключение...
+        </div>
+
+        <div id="lobbyView">
+            <div class="room-id-badge">
+                <div>
+                    <div class="room-id-label">ID комнаты</div>
+                    <div class="room-id-value" id="displayID"></div>
+                </div>
+                <button class="copy-btn" id="copyBtn" onclick="copyRoomId()">📋 Копировать</button>
+            </div>
+
+            <div class="teams-grid">
+                <div class="team-col team-col-red">
+                    <div class="team-col-header"><span class="dot dot-red"></span> Красные</div>
+                    <div class="player-list" id="listRed"></div>
+                    <button class="btn btn-red" id="btnJoinRed" onclick="requestTeam('red')">Зайти</button>
+                </div>
+                <div class="team-col team-col-blue">
+                    <div class="team-col-header"><span class="dot dot-blue"></span> Синие</div>
+                    <div class="player-list" id="listBlue"></div>
+                    <button class="btn btn-blue-team" id="btnJoinBlue" onclick="requestTeam('blue')">Зайти</button>
+                </div>
+            </div>
+
+            <button id="btnStartGame" class="btn btn-start">🏒 НАЧАТЬ МАТЧ</button>
+            <div class="status-bar" id="statusText">
+                <span class="pulse-dot"></span> Ожидание игроков...
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="gameUI">
+    <div class="hud">
+        <div class="score-team">
+            <span class="score-team-name">Красные</span>
+            <span class="score-num score-num-red" id="scoreRed">0</span>
+        </div>
+        <span class="score-sep">:</span>
+        <div class="score-team" style="flex-direction:row-reverse">
+            <span class="score-team-name">Синие</span>
+            <span class="score-num score-num-blue" id="scoreBlue">0</span>
+        </div>
+    </div>
+
+    <canvas id="hockeyRink" width="1000" height="600"></canvas>
+
+    <div id="controlsPanel">
+        <div class="controls-grid">
+
+            <div class="control-group">
+                <div class="control-group-title">🕹 Движение</div>
+                <div class="wasd-layout">
+                    <div class="wasd-empty"></div>
+                    <div class="wasd-key">W</div>
+                    <div class="wasd-empty"></div>
+                    <div class="wasd-key">A</div>
+                    <div class="wasd-key">S</div>
+                    <div class="wasd-key">D</div>
+                </div>
+                <div class="wasd-desc">Передвижение игрока</div>
+                <div class="control-row" style="margin-top:6px">
+                    <span class="key key-icon">🖱</span>
+                    <span class="control-desc">Прицел — курсор мыши</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-group-title">🏒 Удары</div>
+                <div class="control-row">
+                    <span class="key">X</span>
+                    <span class="control-desc">Бросок кистью — быстрый</span>
+                </div>
+                <div class="control-row">
+                    <span class="key">C</span>
+                    <span class="control-desc">Щелчок — сильный</span>
+                </div>
+                <div class="control-row">
+                    <span class="key">V</span>
+                    <span class="control-desc">Подброс — шайба в воздух</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-group-title">📋 Правила</div>
+                <div class="control-row">
+                    <span style="font-size:16px">🟡</span>
+                    <span class="control-desc">Золотой ободок — ваш игрок</span>
+                </div>
+                <div class="control-row">
+                    <span style="font-size:16px">🟨</span>
+                    <span class="control-desc">Жёлтая клюшка — шайба у вас</span>
+                </div>
+                <div class="control-row">
+                    <span style="font-size:16px">⏱</span>
+                    <span class="control-desc">Владение — макс. 3 секунды</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('hockeyRink');
+const ctx = canvas.getContext('2d');
+
+let peer, myId, connToHost;
+let connections = [];
+let isHost = false;
+let gameStarted = false;
+
+const keys = { w: false, a: false, s: false, d: false, x: false, c: false, v: false };
+const mouse = { x: 0, y: 0 };
+
+let gameState = {
+    players: {},
+    puck: { x: 500, y: 300, vx: 0, vy: 0, radius: 10, holderId: null, cooldown: 0, z: 0, vz: 0 },
+    score: { red: 0, blue: 0 }
+};
+
+// --- СЕТЕВАЯ ЧАСТЬ ---
+
+document.getElementById('btnCreate').addEventListener('click', () => {
+    document.getElementById('preConnect').style.display = 'none';
+    document.getElementById('connectingState').style.display = 'block';
+    peer = new Peer();
+    peer.on('open', (id) => {
+        myId = id; isHost = true;
+        document.getElementById('connectingState').style.display = 'none';
+        initLobbyUI(id);
+        addPlayerToState(id, "Хост");
+    });
+    peer.on('connection', (conn) => {
+        connections.push(conn);
+        conn.on('data', (data) => handleNetworkData(conn, data));
+        conn.on('close', () => removePlayer(conn.peer));
+    });
+});
+
+document.getElementById('btnJoin').addEventListener('click', () => {
+    const targetId = document.getElementById('joinIdInput').value.trim();
+    if (!targetId) return;
+    document.getElementById('preConnect').style.display = 'none';
+    document.getElementById('connectingState').style.display = 'block';
+    peer = new Peer();
+    peer.on('open', (id) => {
+        myId = id;
+        connToHost = peer.connect(targetId);
+        connToHost.on('open', () => {
+            document.getElementById('connectingState').style.display = 'none';
+            initLobbyUI(targetId);
+            connToHost.send({ type: 'JOIN_LOBBY', name: "Игрок " + id.slice(0, 4) });
+        });
+        connToHost.on('data', (data) => handleNetworkData(null, data));
+    });
+});
+
+function handleNetworkData(conn, msg) {
+    if (isHost) {
+        if (msg.type === 'JOIN_LOBBY') addPlayerToState(conn.peer, msg.name);
+        if (msg.type === 'CHANGE_TEAM') changePlayerTeam(conn.peer, msg.team);
+        if (msg.type === 'INPUT') { if (gameState.players[conn.peer]) gameState.players[conn.peer].inputs = msg.data; }
+    } else {
+        if (msg.type === 'SYNC_LOBBY') {
+            gameState = msg.state;
+            updateLobbyDisplay();
+        }
+        if (msg.type === 'SYNC_GAME') {
+            gameState = msg.state;
+            if (!gameStarted) startClientGame();
+        }
+    }
+}
+
+function copyRoomId() {
+    const id = document.getElementById('displayID').innerText;
+    navigator.clipboard.writeText(id).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = '✅ Скопировано';
+        setTimeout(() => btn.textContent = '📋 Копировать', 2000);
+    });
+}
+
+function initLobbyUI(id) {
+    document.getElementById('lobbyView').style.display = 'block';
+    document.getElementById('displayID').innerText = id;
+    if (isHost) {
+        document.getElementById('btnStartGame').style.display = 'block';
+        document.getElementById('copyBtn').style.display = 'flex';
+    } else {
+        document.getElementById('copyBtn').style.display = 'none';
+    }
+}
+
+function addPlayerToState(id, name) {
+    gameState.players[id] = {
+        id, name, team: 'red',
+        x: 0, y: 0, vx: 0, vy: 0, angle: 0,
+        hasPuck: false, possessionTimer: 0,
+        inputs: { keys: {}, mouse: { x: 0, y: 0 } }
+    };
+    broadcastLobby();
+}
+
+function removePlayer(id) {
+    delete gameState.players[id];
+    connections = connections.filter(c => c.peer !== id);
+    broadcastLobby();
+}
+
+function changePlayerTeam(id, team) {
+    if (gameState.players[id]) {
+        gameState.players[id].team = team;
+        broadcastLobby();
+    }
+}
+
+function requestTeam(team) {
+    if (isHost) changePlayerTeam(myId, team);
+    else connToHost.send({ type: 'CHANGE_TEAM', team: team });
+    // Визуальная обратная связь
+    document.getElementById('btnJoinRed').classList.toggle('active', team === 'red');
+    document.getElementById('btnJoinBlue').classList.toggle('active', team === 'blue');
+}
+
+function broadcastLobby() {
+    if (!isHost) return;
+    updateLobbyDisplay();
+    connections.forEach(c => c.send({ type: 'SYNC_LOBBY', state: gameState }));
+}
+
+function updateLobbyDisplay() {
+    const listRed = document.getElementById('listRed');
+    const listBlue = document.getElementById('listBlue');
+    listRed.innerHTML = "";
+    listBlue.innerHTML = "";
+
+    let myTeam = null;
+    for (let id in gameState.players) {
+        const p = gameState.players[id];
+        const isMe = id === myId;
+        if (isMe) myTeam = p.team;
+
+        const item = document.createElement('div');
+        item.className = 'player-item' + (isMe ? ' player-you' : '');
+        const isHostPlayer = (isHost && id === myId) || (!isHost && p.name === 'Хост');
+        item.innerHTML = `<span class="player-crown">${isHostPlayer ? '👑' : '👤'}</span> ${p.name}${isMe ? ' <span style="color:var(--muted);font-weight:400">(вы)</span>' : ''}`;
+
+        if (p.team === 'red') listRed.appendChild(item);
+        else listBlue.appendChild(item);
+    }
+
+    // Подсветить текущую команду
+    if (myTeam) {
+        document.getElementById('btnJoinRed').classList.toggle('active', myTeam === 'red');
+        document.getElementById('btnJoinBlue').classList.toggle('active', myTeam === 'blue');
+    }
+
+    // Счётчик
+    const total = Object.keys(gameState.players).length;
+    const statusEl = document.getElementById('statusText');
+    if (statusEl) statusEl.innerHTML = `<span class="pulse-dot"></span> Игроков в лобби: ${total}`;
+}
+
+// --- ИГРОВОЙ ПРОЦЕСС ---
+
+document.getElementById('btnStartGame').addEventListener('click', () => {
+    if (!isHost) return;
+    gameStarted = true;
+    resetPositions();
+    document.getElementById('setupMenu').style.display = 'none';
+    showGameUI();
+    startGameLoop();
+});
+
+function startClientGame() {
+    gameStarted = true;
+    document.getElementById('setupMenu').style.display = 'none';
+    showGameUI();
+    startGameLoop();
+}
+
+function showGameUI() {
+    const gameUI = document.getElementById('gameUI');
+    gameUI.style.display = 'flex';
+    canvas.style.display = 'block';
+    document.getElementById('controlsPanel').style.display = 'block';
+}
+
+function resetPositions() {
+    const ids = Object.keys(gameState.players);
+    const reds = ids.filter(id => gameState.players[id].team === 'red');
+    const blues = ids.filter(id => gameState.players[id].team === 'blue');
+
+    reds.forEach((id, i) => {
+        const existingInputs = gameState.players[id].inputs || { keys: {}, mouse: { x: 0, y: 0 } };
+        gameState.players[id].x = 200;
+        gameState.players[id].y = 200 + i * 120;
+        gameState.players[id].vx = 0; gameState.players[id].vy = 0;
+        gameState.players[id].hasPuck = false; gameState.players[id].possessionTimer = 0;
+        gameState.players[id].inputs = existingInputs; // ИСПРАВЛЕНО: сохраняем или инициализируем inputs
+    });
+    blues.forEach((id, i) => {
+        const existingInputs = gameState.players[id].inputs || { keys: {}, mouse: { x: 0, y: 0 } };
+        gameState.players[id].x = 800;
+        gameState.players[id].y = 200 + i * 120;
+        gameState.players[id].vx = 0; gameState.players[id].vy = 0;
+        gameState.players[id].hasPuck = false; gameState.players[id].possessionTimer = 0;
+        gameState.players[id].inputs = existingInputs; // ИСПРАВЛЕНО: сохраняем или инициализируем inputs
+    });
+
+    gameState.puck = { x: 500, y: 300, vx: 0, vy: 0, radius: 10, holderId: null, cooldown: 60, z: 0, vz: 0 };
+}
+
+window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() in keys) {
+        e.preventDefault();
+        keys[e.key.toLowerCase()] = true;
+        sendInput();
+    }
+});
+window.addEventListener('keyup', (e) => {
+    if (e.key.toLowerCase() in keys) {
+        e.preventDefault();
+        keys[e.key.toLowerCase()] = false;
+        sendInput();
+    }
+});
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const scaleX = 1000 / rect.width;
+    const scaleY = 600 / rect.height;
+    mouse.x = (e.clientX - rect.left) * scaleX;
+    mouse.y = (e.clientY - rect.top) * scaleY;
+    sendInput();
+});
+
+function sendInput() {
+    if (!gameStarted) return;
+    const data = { keys: { ...keys }, mouse: { ...mouse } };
+    if (isHost) gameState.players[myId].inputs = data;
+    else if (connToHost) connToHost.send({ type: 'INPUT', data: data });
+}
+
+// --- ФИЗИКА (ТОЛЬКО ХОСТ) ---
+
+function updatePhysics() {
+    if (!isHost || !gameStarted) return;
+
+    const puck = gameState.puck;
+
+    for (let id in gameState.players) {
+        const p = gameState.players[id];
+        
+        // ИСПРАВЛЕНО: защита от отсутствия inputs на первом кадре/подключении
+        if (!p.inputs) {
+            p.inputs = { keys: {}, mouse: { x: p.x, y: p.y } };
+        }
+        const inp = p.inputs;
+
+        if (inp.keys.w) p.vy -= 0.4;
+        if (inp.keys.s) p.vy += 0.4;
+        if (inp.keys.a) p.vx -= 0.4;
+        if (inp.keys.d) p.vx += 0.4;
+
+        p.vx *= 0.96; p.vy *= 0.96;
+        p.x += p.vx; p.y += p.vy;
+        
+        // Защита на случай, если мышь еще не двигалась
+        const mx = (inp.mouse && inp.mouse.x !== undefined) ? inp.mouse.x : p.x;
+        const my = (inp.mouse && inp.mouse.y !== undefined) ? inp.mouse.y : p.y;
+        p.angle = Math.atan2(my - p.y, mx - p.x);
+
+        if (p.x < 20) p.x = 20; if (p.x > 980) p.x = 980;
+        if (p.y < 20) p.y = 20; if (p.y > 580) p.y = 580;
+
+        if (p.hasPuck) {
+            p.possessionTimer++;
+            if (p.possessionTimer > 180) releasePuck(p);
+            if (inp.keys.x) shoot(p, 14, 0);
+            if (inp.keys.c) shoot(p, 24, 0);
+            if (inp.keys.v) shoot(p, 10, 7);
+        } else if (!puck.holderId && puck.cooldown <= 0 && puck.z < 15) {
+            const dist = Math.hypot(puck.x - p.x, puck.y - p.y);
+            if (dist < 35) { p.hasPuck = true; puck.holderId = id; p.possessionTimer = 0; }
+        }
+    }
+
+    if (puck.holderId) {
+        const h = gameState.players[puck.holderId];
+        puck.x = h.x + Math.cos(h.angle) * 25;
+        puck.y = h.y + Math.sin(h.angle) * 25;
+    } else {
+        puck.x += puck.vx; puck.y += puck.vy;
+        puck.vx *= 0.993; puck.vy *= 0.993;
+        if (puck.z > 0 || puck.vz !== 0) {
+            puck.z += puck.vz; puck.vz -= 0.35;
+            if (puck.z < 0) { puck.z = 0; puck.vz = 0; }
+        }
+        checkGoal(puck);
+        if (puck.x < 10 || puck.x > 990) puck.vx *= -0.8;
+        if (puck.y < 10 || puck.y > 590) puck.vy *= -0.8;
+    }
+    if (puck.cooldown > 0) puck.cooldown--;
+
+    connections.forEach(c => c.send({ type: 'SYNC_GAME', state: gameState }));
+}
+
+function shoot(p, pwr, vz) {
+    const puck = gameState.puck;
+    p.hasPuck = false; puck.holderId = null; puck.cooldown = 30;
+    puck.vx = Math.cos(p.angle) * pwr + p.vx * 0.5;
+    puck.vy = Math.sin(p.angle) * pwr + p.vy * 0.5;
+    puck.vz = vz;
+}
+
+function releasePuck(p) {
+    const puck = gameState.puck;
+    p.hasPuck = false; puck.holderId = null; puck.cooldown = 40;
+    puck.vx = Math.cos(p.angle) * 4; puck.vy = Math.sin(p.angle) * 4;
+}
+
+function checkGoal(puck) {
+    if (puck.x > 980 && puck.y > 230 && puck.y < 370) {
+        gameState.score.red++; resetPositions();
+    }
+    if (puck.x < 20 && puck.y > 230 && puck.y < 370) {
+        gameState.score.blue++; resetPositions();
+    }
+}
+
+// --- РЕНДЕРИНГ ---
+
+function draw() {
+    if (!gameStarted) return;
+    document.getElementById('scoreRed').innerText = gameState.score.red;
+    document.getElementById('scoreBlue').innerText = gameState.score.blue;
+
+    ctx.clearRect(0, 0, 1000, 600);
+    drawRink();
+
+    for (let id in gameState.players) {
+        const p = gameState.players[id];
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
+        ctx.fillStyle = p.hasPuck ? '#facc15' : '#475569';
+        ctx.fillRect(18, -4, 15, 8);
+        ctx.fillStyle = (p.team === 'red') ? '#ef4444' : '#3b82f6';
+        ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = (id === myId) ? '#ffd700' : 'white';
+        ctx.lineWidth = (id === myId) ? 3.5 : 2;
+        ctx.stroke();
+        ctx.restore();
+
+        // Имя игрока
+        ctx.fillStyle = (id === myId) ? '#ffd700' : 'rgba(255,255,255,0.7)';
+        ctx.font = 'bold 11px Noto Sans, sans-serif';
+        ctx.textAlign = 'center';
+        const label = p.name + (id === myId ? ' ★' : '');
+        ctx.fillText(label, p.x, p.y - 28);
+    }
+
+    const pk = gameState.puck;
+    // Тень шайбы
+    if (pk.z > 0) {
+        ctx.fillStyle = 'rgba(0,0,0,0.2)';
+        ctx.beginPath();
+        ctx.ellipse(pk.x, pk.y + 2, pk.radius + 2, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.fillStyle = '#1a1a2e';
+    ctx.beginPath();
+    ctx.arc(pk.x, pk.y - pk.z, pk.radius + pk.z * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+}
+
+function drawRink() {
+    // Фон льда
+    const iceGrad = ctx.createLinearGradient(0, 0, 0, 600);
+    iceGrad.addColorStop(0, '#dbeafe');
+    iceGrad.addColorStop(1, '#bfdbfe');
+    ctx.fillStyle = iceGrad;
+    ctx.fillRect(0, 0, 1000, 600);
+
+    // Линии разметки
+    ctx.strokeStyle = 'rgba(59,130,246,0.25)';
+    ctx.lineWidth = 2;
+
+    // Центральная линия
+    ctx.beginPath(); ctx.moveTo(500, 0); ctx.lineTo(500, 600); ctx.stroke();
+
+    // Центральный круг
+    ctx.beginPath(); ctx.arc(500, 300, 80, 0, Math.PI * 2); ctx.stroke();
+
+    // Зоны вбрасывания
+    ctx.beginPath(); ctx.arc(200, 150, 40, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(200, 450, 40, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(800, 150, 40, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(800, 450, 40, 0, Math.PI * 2); ctx.stroke();
+
+    // Синие линии зон
+    ctx.strokeStyle = 'rgba(59,130,246,0.4)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(300, 0); ctx.lineTo(300, 600); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(700, 0); ctx.lineTo(700, 600); ctx.stroke();
+
+    // Красная центральная точка
+    ctx.fillStyle = 'rgba(240,64,64,0.5)';
+    ctx.beginPath(); ctx.arc(500, 300, 6, 0, Math.PI * 2); ctx.fill();
+
+    // Ворота красных (слева)
+    ctx.fillStyle = 'rgba(240,64,64,0.25)';
+    ctx.fillRect(0, 230, 20, 140);
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(0, 230, 20, 140);
+
+    // Ворота синих (справа)
+    ctx.fillStyle = 'rgba(59,130,246,0.25)';
+    ctx.fillRect(980, 230, 20, 140);
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(980, 230, 20, 140);
+
+    // Борта
+    ctx.strokeStyle = '#1e3a5f';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(2, 2, 996, 596);
+}
+
+function startGameLoop() {
+    function frame() {
+        updatePhysics();
+        draw();
+        requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>
